@@ -1,58 +1,28 @@
 #ifndef INSTRUCTOR_H
 #define INSTRUCTOR_H
 #include "Person.h"
-#include <string>
-#include <fstream>
-#include "FileHandler.h"
 using namespace std;
 
 class Instructor : public Person {
-private:
     string department;
     string office;
-    
 public:
     Instructor() : Person(), department(""), office("") {}
-    Instructor(int pid, string pname, string pemail, string pdept, string poffice) 
-        : Person(pid, pname, pemail), department(pdept), office(poffice) {}
-    
-    string getDepartment() { return department; }
-    void setDepartment(string pdept) { department = pdept; }
-    string getOffice() { return office; }
-    void setOffice(string poffice) { office = poffice; }
-    
-    void requestMakeupLab() {
-        cout << "Instructor " << name << " requested a makeup lab." << endl;
-    }
+    Instructor(int pid, string pname, string pemail, string pdept, string poff)
+        : Person(pid, pname, pemail), department(pdept), office(poff) {}
 
-    // Binary file handling
-    void serialize(ofstream& file) override {
-        Person::serialize(file);
-        FileHandler::writeString(file, department);
-        FileHandler::writeString(file, office);
-    }
+    string getDepartment() const { return department; }
+    string getOffice()     const { return office; }
 
-    void deserialize(ifstream& file) override {
-        Person::deserialize(file);
-        department = FileHandler::readString(file);
-        office = FileHandler::readString(file);
+    void serialize(ofstream& f) const override {
+        Person::serialize(f);
+        FileHandler::writeString(f, department);
+        FileHandler::writeString(f, office);
     }
-
-    void saveToFile(const string& filename) {
-        ofstream file(filename, ios::binary);
-        if (file.is_open()) {
-            serialize(file);
-            file.close();
-        }
-    }
-
-    void loadFromFile(const string& filename) {
-        ifstream file(filename, ios::binary);
-        if (file.is_open()) {
-            deserialize(file);
-            file.close();
-        }
+    void deserialize(ifstream& f) override {
+        Person::deserialize(f);
+        department = FileHandler::readString(f);
+        office     = FileHandler::readString(f);
     }
 };
-
 #endif

@@ -1,52 +1,38 @@
 #ifndef SCHEDULE_H
 #define SCHEDULE_H
-#include "LabSection.h"
-#include <string>
 #include <fstream>
 #include "FileHandler.h"
+class LabSection;
 using namespace std;
 
 class Schedule {
-private:
-    int scheduleId;
-    LabSection* labSection;
-    string dayOfWeek;
-    string expectedStartTime;
-    string expectedEndTime;
-    
+    int          scheduleId;
+    LabSection*  labSection;
+    string       dayOfWeek;
+    string       startTime;
+    string       endTime;
 public:
-    Schedule() : scheduleId(0), labSection(nullptr), dayOfWeek(""), expectedStartTime(""), expectedEndTime("") {}
-    Schedule(int sid, LabSection* section, string day, string start, string end) 
-        : scheduleId(sid), labSection(section), dayOfWeek(day), expectedStartTime(start), expectedEndTime(end) {}
-    
-    int getScheduleId() { return scheduleId; }
-    void setScheduleId(int sid) { scheduleId = sid; }
-    LabSection* getLabSection() { return labSection; }
-    void setLabSection(LabSection* section) { labSection = section; }
-    string getDayOfWeek() { return dayOfWeek; }
-    void setDayOfWeek(string day) { dayOfWeek = day; }
-    string getExpectedStartTime() { return expectedStartTime; }
-    void setExpectedStartTime(string start) { expectedStartTime = start; }
-    string getExpectedEndTime() { return expectedEndTime; }
-    void setExpectedEndTime(string end) { expectedEndTime = end; }
+    Schedule() : scheduleId(0), labSection(nullptr), dayOfWeek(""), startTime(""), endTime("") {}
+    Schedule(int sid, LabSection* sec, string d, string s, string e)
+        : scheduleId(sid), labSection(sec), dayOfWeek(d), startTime(s), endTime(e) {}
 
-    // Binary file handling
-    void serialize(ofstream& file) {
-        file.write((char*)&scheduleId, sizeof(scheduleId));
-        int sectionId = labSection ? labSection->getSectionId() : -1;
-        file.write((char*)&sectionId, sizeof(sectionId));
-        FileHandler::writeString(file, dayOfWeek);
-        FileHandler::writeString(file, expectedStartTime);
-        FileHandler::writeString(file, expectedEndTime);
+    int         getScheduleId()    const { return scheduleId; }
+    LabSection* getLabSection()    const { return labSection; }
+    string      getDayOfWeek()     const { return dayOfWeek; }
+    string      getExpectedStartTime() const { return startTime; }
+    string      getExpectedEndTime()   const { return endTime; }
+
+    void serialize(ofstream& f) const {
+        f.write((char*)&scheduleId, sizeof(scheduleId));
+        int sid = labSection ? labSection->getSectionId() : -1;
+        f.write((char*)&sid, sizeof(sid));
+        FileHandler::writeString(f, dayOfWeek);
+        FileHandler::writeString(f, startTime);
+        FileHandler::writeString(f, endTime);
     }
-
-    void saveToFile(const string& filename) {
-        ofstream file(filename, ios::binary);
-        if (file.is_open()) {
-            serialize(file);
-            file.close();
-        }
+    void saveToFile(const string& filename) const {
+        ofstream f(filename, ios::binary);
+        if (f.is_open()) serialize(f);
     }
 };
-
 #endif

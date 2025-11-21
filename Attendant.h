@@ -1,59 +1,36 @@
 #ifndef ATTENDANT_H
 #define ATTENDANT_H
 #include "Person.h"
-#include "Building.h"
 #include "TimeSheet.h"
-#include <string>
-#include <fstream>
-#include "FileHandler.h"
+class Building;
 using namespace std;
 
 class Attendant : public Person {
-private:
     Building* assignedBuilding;
-    
 public:
     Attendant() : Person(), assignedBuilding(nullptr) {}
-    Attendant(int pid, string pname, string pemail, Building* building) 
-        : Person(pid, pname, pemail), assignedBuilding(building) {}
-    
-    Building* getAssignedBuilding() { return assignedBuilding; }
-    void setAssignedBuilding(Building* building) { assignedBuilding = building; }
-    
-    void fillTimeSheet(TimeSheet* timesheet, string startTime, string endTime) {
-        timesheet->setActualStartTime(startTime);
-        timesheet->setActualEndTime(endTime);
-        cout << "Attendant " << name << " filled timesheet for lab." << endl;
+    Attendant(int pid, string pname, string pemail, Building* b)
+        : Person(pid, pname, pemail), assignedBuilding(b) {}
+
+    Building* getAssignedBuilding() const { return assignedBuilding; }
+
+    void fillTimeSheet(TimeSheet* ts, string st, string et) {
+        if (!ts) return;
+        ts->setActualStartTime(st);
+        ts->setActualEndTime(et);
+        cout << "\n[Attendant " << getName() << "] filled timesheet "
+             << ts->getTimeSheetId() << "  " << st << " – " << et << "\n";
     }
 
-    // Binary file handling
-    void serialize(ofstream& file) override {
-        Person::serialize(file);
-        int buildingId = assignedBuilding ? assignedBuilding->getBuildingId() : -1;
-        file.write((char*)&buildingId, sizeof(buildingId));
+    void serialize(ofstream& f) const override {
+        Person::serialize(f);
+        int bid = assignedBuilding ? assignedBuilding->getBuildingId() : -1;
+        f.write((char*)&bid, sizeof(bid));
     }
-
-    void deserialize(ifstream& file) override {
-        Person::deserialize(file);
-        int buildingId;
-        file.read((char*)&buildingId, sizeof(buildingId));
-    }
-
-    void saveToFile(const string& filename) {
-        ofstream file(filename, ios::binary);
-        if (file.is_open()) {
-            serialize(file);
-            file.close();
-        }
-    }
-
-    void loadFromFile(const string& filename) {
-        ifstream file(filename, ios::binary);
-        if (file.is_open()) {
-            deserialize(file);
-            file.close();
-        }
+    void deserialize(ifstream& f) override {
+        Person::deserialize(f);
+        int bid; f.read((char*)&bid, sizeof(bid));
+        // rebuild pointer via id later
     }
 };
-
 #endif
