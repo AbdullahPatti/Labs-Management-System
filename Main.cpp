@@ -41,14 +41,63 @@ using namespace std;
 /* ----------------  AcademicOfficer method definitions  ---------------- */
 void AcademicOfficer::populateLabData() {
     if (!system) { cout << "System not linked.\n"; return; }
-    cout << "Populating default schedules & skeleton timesheets...\n";
-    int schId = 10000, tsId = 20000;
-    for (auto* sec : system->getLabSections()) {
-        auto* sch = new Schedule(++schId, sec, "Monday", "14:00", "16:00");
-        system->addSchedule(sch);
-        auto* ts = new TimeSheet(++tsId, sec, "2025-11-24", "", "", false);
-        system->addTimeSheet(ts);
+    
+    cout << "\n========== POPULATE LAB DATA ==========\n";
+    cout << "This will create schedules and timesheets for lab sections.\n\n";
+    
+    auto& sections = system->getLabSections();
+    if (sections.empty()) {
+        cout << "No lab sections available.\n";
+        return;
     }
+    
+    cout << "Available Lab Sections:\n";
+    for (auto* sec : sections) {
+        cout << "  ID: " << sec->getSectionId() << " - " << sec->getCourseCode() 
+             << " - " << sec->getSectionName() << "\n";
+    }
+    
+    static int schId = 10000, tsId = 20000;
+    
+    for (auto* sec : sections) {
+        cout << "\n--- Setting schedule for " << sec->getCourseCode() 
+             << " (" << sec->getSectionName() << ") ---\n";
+        
+        cout << "How many weekly sessions for this lab? (1-3): ";
+        int sessions;
+        cin >> sessions;
+        cin.ignore();
+        
+        if (sessions < 1) sessions = 1;
+        if (sessions > 3) sessions = 3;
+        
+        for (int i = 0; i < sessions; i++) {
+            if (sessions > 1) {
+                cout << "\nSession " << (i+1) << " of " << sessions << ":\n";
+            }
+            
+            string day, start, end, date;
+            cout << "  Day of week (e.g., Monday, Tuesday): ";
+            getline(cin, day);
+            cout << "  Start time (HH:MM): ";
+            getline(cin, start);
+            cout << "  End time (HH:MM): ";
+            getline(cin, end);
+            cout << "  Date for timesheet (YYYY-MM-DD): ";
+            getline(cin, date);
+            
+            auto* sch = new Schedule(++schId, sec, day, start, end);
+            system->addSchedule(sch);
+            
+            auto* ts = new TimeSheet(++tsId, sec, date, "", "", false);
+            system->addTimeSheet(ts);
+            
+            cout << "  → Schedule created (ID: " << schId << ")\n";
+            cout << "  → Timesheet created (ID: " << tsId << ")\n";
+        }
+    }
+    
+    cout << "\n✓ Lab data populated successfully!\n";
 }
 
 void AcademicOfficer::scheduleMakeupLab(int mid, const string& day, const string& st, const string& et) {
@@ -125,16 +174,24 @@ void LabManagementSystem::requestMakeupLab(int insId, int secId, const string& d
     auto* sec = findLabSection(secId);
     if (!sec) { cout << "Section not found.\n"; return; }
     if (sec->getInstructor() != instr) { cout << "Instructor not assigned to this section.\n"; return; }
+    
+    // Find the highest existing makeup ID
     static int mid = 7000;
+    for (auto* m : makeupLabs) {
+        if (m->getMakeupId() > mid) {
+            mid = m->getMakeupId();
+        }
+    }
+    
     auto* m = new MakeupLabs(++mid, sec, date, reason);
     addMakeupLab(m);
-    cout << "Makeup request created ID=" << mid << "\n";
+    cout << "\n✓ Makeup request created successfully! (ID=" << mid << ")\n";
 }
 
 void LabManagementSystem::scheduleMakeupLab(int mid, const string& day, const string& st, const string& et) {
     MakeupLabs* m = nullptr;
     for (auto* x : makeupLabs) if (x->getMakeupId() == mid) { m = x; break; }
-    if (!m) { cout << "Makeup request not found.\n"; return; }
+    if (!m) { cout << "\nMakeup request not found.\n"; return; }
     
     auto* sec = m->getLabSection();
     
@@ -143,7 +200,7 @@ void LabManagementSystem::scheduleMakeupLab(int mid, const string& day, const st
     for (auto* sch : schedules) {
         if (sch->getDayOfWeek() == day && sch->getLabSection()->getRoom() == sec->getRoom()) {
             if (sch->getExpectedStartTime() == st) {
-                cout << "Conflict detected: Room " << sec->getRoom()->getRoomNumber() 
+                cout << "\n⚠ Conflict detected: Room " << sec->getRoom()->getRoomNumber() 
                      << " is already booked at this time.\n";
                 conflict = true;
                 break;
@@ -156,13 +213,27 @@ void LabManagementSystem::scheduleMakeupLab(int mid, const string& day, const st
         return;
     }
     
+    // Find the highest existing schedule and timesheet IDs
     static int schId = 8000, tsId = 9000;
+    for (auto* s : schedules) {
+        if (s->getScheduleId() > schId) {
+            schId = s->getScheduleId();
+        }
+    }
+    for (auto* t : timeSheets) {
+        if (t->getTimeSheetId() > tsId) {
+            tsId = t->getTimeSheetId();
+        }
+    }
+    
     auto* sch = new Schedule(++schId, sec, day, st, et);
     addSchedule(sch);
     m->setMakeupSchedule(sch);
     auto* ts = new TimeSheet(++tsId, sec, m->getRequestDate(), "", "", true);
     addTimeSheet(ts);
-    cout << "Makeup lab scheduled successfully.\n";
+    cout << "\n✓ Makeup lab scheduled successfully!\n";
+    cout << "  Schedule ID: " << schId << "\n";
+    cout << "  Timesheet ID: " << tsId << "\n";
 }
 
 void LabManagementSystem::fillTimeSheet(int tsid, const string& st, const string& et) {
@@ -201,13 +272,43 @@ T read(string prompt, T low, T high) {
             return x;
         }
         cin.clear(); 
-        cin.ignore(256,'\n');
+        cin.ignore(numeric_limits<streamsize>::max(),'\n');
         cout << "Invalid input. Try again.\n";
     }
 }
 
+string readString(string prompt) {
+    string s;
+    cout << prompt;
+    getline(cin, s);
+    return s;
+}
+
 /* ---------- Global singleton ---------- */
 LabManagementSystem LMS;
+
+bool isDuplicateId(int id, string type) {
+    if (type == "building") {
+        for (auto* b : LMS.getBuildings())
+            if (b->getBuildingId() == id) return true;
+    } else if (type == "room") {
+        for (auto* r : LMS.getRooms())
+            if (r->getRoomId() == id) return true;
+    } else if (type == "instructor") {
+        for (auto* i : LMS.getInstructors())
+            if (i->getId() == id) return true;
+    } else if (type == "ta") {
+        for (auto* t : LMS.getTAs())
+            if (t->getId() == id) return true;
+    } else if (type == "section") {
+        for (auto* ls : LMS.getLabSections())
+            if (ls->getSectionId() == id) return true;
+    } else if (type == "attendant") {
+        for (auto* a : LMS.getAttendants())
+            if (a->getId() == id) return true;
+    }
+    return false;
+}
 
 /* ============================================================
                       BINARY PERSISTENCE
@@ -383,17 +484,19 @@ void seedData() {
     ls1->addTA(t1); ls1->addTA(t2); ls2->addTA(t3); ls3->addTA(t4);
     LMS.addLabSection(ls1); LMS.addLabSection(ls2); LMS.addLabSection(ls3);
 
+    // Sample schedules and timesheets - user can modify these via populate menu
     int sid=3001, tid=4001;
-    auto add=[&](LabSection* sec, string day, string s, string e){
+    auto add=[&](LabSection* sec, string day, string s, string e, string date){
         Schedule* sch = new Schedule(sid++,sec,day,s,e);
         LMS.addSchedule(sch);
-        TimeSheet* ts = new TimeSheet(tid++,sec,"2025-11-24","", "", false);
+        TimeSheet* ts = new TimeSheet(tid++,sec,date,"", "", false);
         LMS.addTimeSheet(ts);
     };
-    add(ls1,"Monday","14:00","16:00");
-    add(ls2,"Tuesday","10:00","12:00");
-    add(ls3,"Wednesday","14:00","16:00");
-    add(ls1,"Thursday","14:00","16:00");
+    
+    // Sample schedules - these are just examples
+    add(ls1,"Monday","14:00","16:00","2025-11-24");
+    add(ls2,"Tuesday","10:00","12:00","2025-11-25");
+    add(ls3,"Wednesday","14:00","16:00","2025-11-26");
 
     AcademicOfficer* ao = new AcademicOfficer(5001,"Academic Admin","admin@uni.edu","Academic");
     ao->setSystem(&LMS); LMS.setAcademicOfficer(ao);
@@ -405,7 +508,8 @@ void seedData() {
     Attendant* at2 = new Attendant(6002,"Ali Attendant","ali@uni.edu",eeB);
     LMS.addAttendant(at1); LMS.addAttendant(at2);
 
-    cout << "Master data seeded.\n";
+    cout << "Master data seeded with sample schedules.\n";
+    cout << "You can add more schedules via 'Populate Lab Data' in Academic Officer menu.\n";
 }
 
 /* ============================================================
@@ -415,15 +519,31 @@ void seedData() {
 void addBuildingMenu() {
     clearScr();
     cout << "========== ADD NEW BUILDING ==========\n";
-    int id = read<int>("Building ID: ", 1, 9999);
+    
+    // Show existing buildings
+    if (!LMS.getBuildings().empty()) {
+        cout << "\nExisting Buildings:\n";
+        for (auto* b : LMS.getBuildings())
+            cout << "  ID: " << b->getBuildingId() << " - " << b->getName() << "\n";
+    }
+    
+    int id;
+    while (true) {
+        id = read<int>("\nBuilding ID: ", 1, 9999);
+        if (isDuplicateId(id, "building")) {
+            cout << "Building ID already exists. Please use a different ID.\n";
+        } else {
+            break;
+        }
+    }
+    
     cin.ignore();
-    string name, location;
-    cout << "Building Name: "; getline(cin, name);
-    cout << "Location: "; getline(cin, location);
+    string name = readString("Building Name: ");
+    string location = readString("Location: ");
     
     Building* b = new Building(id, name, location);
     LMS.addBuilding(b);
-    cout << "Building added successfully.\n";
+    cout << "\nBuilding added successfully.\n";
     pauseScr();
 }
 
@@ -431,68 +551,141 @@ void addRoomMenu() {
     clearScr();
     cout << "========== ADD NEW ROOM ==========\n";
     
+    if (LMS.getBuildings().empty()) {
+        cout << "\nNo buildings available. Please add a building first.\n";
+        pauseScr();
+        return;
+    }
+    
+    // Show existing rooms
+    if (!LMS.getRooms().empty()) {
+        cout << "\nExisting Rooms:\n";
+        for (auto* r : LMS.getRooms())
+            cout << "  ID: " << r->getRoomId() << " - " << r->getRoomNumber() << "\n";
+    }
+    
     cout << "\nAvailable Buildings:\n";
     for (auto* b : LMS.getBuildings())
         cout << "  ID: " << b->getBuildingId() << " - " << b->getName() << "\n";
     
-    int rid = read<int>("\nRoom ID: ", 1, 9999);
-    cin.ignore();
-    string rnum;
-    cout << "Room Number: "; getline(cin, rnum);
-    int cap = read<int>("Capacity: ", 1, 200);
-    int bid = read<int>("Building ID: ", 1, 9999);
-    
-    Building* building = nullptr;
-    for (auto* b : LMS.getBuildings())
-        if (b->getBuildingId() == bid) { building = b; break; }
-    
-    if (!building) {
-        cout << "Building not found.\n";
-    } else {
-        Room* r = new Room(rid, rnum, cap, building);
-        LMS.addRoom(r);
-        cout << "Room added successfully.\n";
+    int rid;
+    while (true) {
+        rid = read<int>("\nRoom ID: ", 1, 9999);
+        if (isDuplicateId(rid, "room")) {
+            cout << "Room ID already exists. Please use a different ID.\n";
+        } else {
+            break;
+        }
     }
+    
+    cin.ignore();
+    string rnum = readString("Room Number: ");
+    int cap = read<int>("Capacity: ", 1, 200);
+    
+    int bid;
+    Building* building = nullptr;
+    while (!building) {
+        bid = read<int>("Building ID: ", 1, 9999);
+        for (auto* b : LMS.getBuildings())
+            if (b->getBuildingId() == bid) { building = b; break; }
+        if (!building)
+            cout << "Building not found. Please try again.\n";
+    }
+    
+    Room* r = new Room(rid, rnum, cap, building);
+    LMS.addRoom(r);
+    cout << "\nRoom added successfully.\n";
     pauseScr();
 }
 
 void addInstructorMenu() {
     clearScr();
     cout << "========== ADD NEW INSTRUCTOR ==========\n";
-    int id = read<int>("Instructor ID: ", 1000, 9999);
+    
+    // Show existing instructors
+    if (!LMS.getInstructors().empty()) {
+        cout << "\nExisting Instructors:\n";
+        for (auto* i : LMS.getInstructors())
+            cout << "  ID: " << i->getId() << " - " << i->getName() << "\n";
+    }
+    
+    int id;
+    while (true) {
+        id = read<int>("\nInstructor ID: ", 1000, 9999);
+        if (isDuplicateId(id, "instructor")) {
+            cout << "Instructor ID already exists. Please use a different ID.\n";
+        } else {
+            break;
+        }
+    }
+    
     cin.ignore();
-    string name, email, dept, office;
-    cout << "Name: "; getline(cin, name);
-    cout << "Email: "; getline(cin, email);
-    cout << "Department: "; getline(cin, dept);
-    cout << "Office: "; getline(cin, office);
+    string name = readString("Name: ");
+    string email = readString("Email: ");
+    string dept = readString("Department: ");
+    string office = readString("Office: ");
     
     Instructor* ins = new Instructor(id, name, email, dept, office);
     LMS.addInstructor(ins);
-    cout << "Instructor added successfully.\n";
+    cout << "\nInstructor added successfully.\n";
     pauseScr();
 }
 
 void addTAMenu() {
     clearScr();
     cout << "========== ADD NEW TA ==========\n";
-    int id = read<int>("TA ID: ", 2000, 9999);
+    
+    // Show existing TAs
+    if (!LMS.getTAs().empty()) {
+        cout << "\nExisting TAs:\n";
+        for (auto* t : LMS.getTAs())
+            cout << "  ID: " << t->getId() << " - " << t->getName() << "\n";
+    }
+    
+    int id;
+    while (true) {
+        id = read<int>("\nTA ID: ", 2000, 9999);
+        if (isDuplicateId(id, "ta")) {
+            cout << "TA ID already exists. Please use a different ID.\n";
+        } else {
+            break;
+        }
+    }
+    
     cin.ignore();
-    string name, email, sid, prog;
-    cout << "Name: "; getline(cin, name);
-    cout << "Email: "; getline(cin, email);
-    cout << "Student ID: "; getline(cin, sid);
-    cout << "Program: "; getline(cin, prog);
+    string name = readString("Name: ");
+    string email = readString("Email: ");
+    string sid = readString("Student ID: ");
+    string prog = readString("Program: ");
     
     TA* ta = new TA(id, name, email, sid, prog);
     LMS.addTA(ta);
-    cout << "TA added successfully.\n";
+    cout << "\nTA added successfully.\n";
     pauseScr();
 }
 
 void addLabSectionMenu() {
     clearScr();
     cout << "========== ADD NEW LAB SECTION ==========\n";
+    
+    if (LMS.getInstructors().empty()) {
+        cout << "\nNo instructors available. Please add an instructor first.\n";
+        pauseScr();
+        return;
+    }
+    
+    if (LMS.getRooms().empty()) {
+        cout << "\nNo rooms available. Please add a room first.\n";
+        pauseScr();
+        return;
+    }
+    
+    // Show existing sections
+    if (!LMS.getLabSections().empty()) {
+        cout << "\nExisting Lab Sections:\n";
+        for (auto* ls : LMS.getLabSections())
+            cout << "  ID: " << ls->getSectionId() << " - " << ls->getCourseCode() << "\n";
+    }
     
     cout << "\nAvailable Instructors:\n";
     for (auto* i : LMS.getInstructors())
@@ -502,29 +695,72 @@ void addLabSectionMenu() {
     for (auto* r : LMS.getRooms())
         cout << "  ID: " << r->getRoomId() << " - " << r->getRoomNumber() << "\n";
     
-    int sid = read<int>("\nSection ID: ", 1, 99);
-    cin.ignore();
-    string ccode, sname;
-    cout << "Course Code: "; getline(cin, ccode);
-    cout << "Section Name: "; getline(cin, sname);
-    int iid = read<int>("Instructor ID: ", 1000, 9999);
-    int rid = read<int>("Room ID: ", 1, 9999);
-    
-    Instructor* inst = nullptr;
-    for (auto* i : LMS.getInstructors())
-        if (i->getId() == iid) { inst = i; break; }
-    
-    Room* room = nullptr;
-    for (auto* r : LMS.getRooms())
-        if (r->getRoomId() == rid) { room = r; break; }
-    
-    if (!inst || !room) {
-        cout << "Instructor or Room not found.\n";
-    } else {
-        LabSection* ls = new LabSection(sid, ccode, sname, inst, room);
-        LMS.addLabSection(ls);
-        cout << "Lab Section added successfully.\n";
+    int sid;
+    while (true) {
+        sid = read<int>("\nSection ID: ", 1, 99);
+        if (isDuplicateId(sid, "section")) {
+            cout << "Section ID already exists. Please use a different ID.\n";
+        } else {
+            break;
+        }
     }
+    
+    cin.ignore();
+    string ccode = readString("Course Code: ");
+    string sname = readString("Section Name: ");
+    
+    int iid;
+    Instructor* inst = nullptr;
+    while (!inst) {
+        iid = read<int>("Instructor ID: ", 1000, 9999);
+        for (auto* i : LMS.getInstructors())
+            if (i->getId() == iid) { inst = i; break; }
+        if (!inst)
+            cout << "Instructor not found. Please try again.\n";
+    }
+    
+    int rid;
+    Room* room = nullptr;
+    while (!room) {
+        rid = read<int>("Room ID: ", 1, 9999);
+        for (auto* r : LMS.getRooms())
+            if (r->getRoomId() == rid) { room = r; break; }
+        if (!room)
+            cout << "Room not found. Please try again.\n";
+    }
+    
+    LabSection* ls = new LabSection(sid, ccode, sname, inst, room);
+    LMS.addLabSection(ls);
+    
+    // Ask if user wants to add TAs
+    if (!LMS.getTAs().empty()) {
+        cout << "\nDo you want to add TAs to this section? (y/n): ";
+        char choice; cin >> choice;
+        if (choice == 'y' || choice == 'Y') {
+            cout << "\nAvailable TAs:\n";
+            for (auto* t : LMS.getTAs())
+                cout << "  ID: " << t->getId() << " - " << t->getName() << "\n";
+            
+            while (true) {
+                int tid = read<int>("\nEnter TA ID (0 to finish): ", 0, 9999);
+                if (tid == 0) break;
+                
+                bool found = false;
+                for (auto* t : LMS.getTAs()) {
+                    if (t->getId() == tid) {
+                        ls->addTA(t);
+                        cout << "TA added to section.\n";
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found)
+                    cout << "TA not found.\n";
+            }
+        }
+    }
+    
+    cout << "\nLab Section added successfully.\n";
     pauseScr();
 }
 
@@ -532,28 +768,50 @@ void addAttendantMenu() {
     clearScr();
     cout << "========== ADD NEW ATTENDANT ==========\n";
     
+    if (LMS.getBuildings().empty()) {
+        cout << "\nNo buildings available. Please add a building first.\n";
+        pauseScr();
+        return;
+    }
+    
+    // Show existing attendants
+    if (!LMS.getAttendants().empty()) {
+        cout << "\nExisting Attendants:\n";
+        for (auto* a : LMS.getAttendants())
+            cout << "  ID: " << a->getId() << " - " << a->getName() << "\n";
+    }
+    
     cout << "\nAvailable Buildings:\n";
     for (auto* b : LMS.getBuildings())
         cout << "  ID: " << b->getBuildingId() << " - " << b->getName() << "\n";
     
-    int id = read<int>("\nAttendant ID: ", 6000, 9999);
-    cin.ignore();
-    string name, email;
-    cout << "Name: "; getline(cin, name);
-    cout << "Email: "; getline(cin, email);
-    int bid = read<int>("Building ID: ", 1, 9999);
-    
-    Building* building = nullptr;
-    for (auto* b : LMS.getBuildings())
-        if (b->getBuildingId() == bid) { building = b; break; }
-    
-    if (!building) {
-        cout << "Building not found.\n";
-    } else {
-        Attendant* att = new Attendant(id, name, email, building);
-        LMS.addAttendant(att);
-        cout << "Attendant added successfully.\n";
+    int id;
+    while (true) {
+        id = read<int>("\nAttendant ID: ", 6000, 9999);
+        if (isDuplicateId(id, "attendant")) {
+            cout << "Attendant ID already exists. Please use a different ID.\n";
+        } else {
+            break;
+        }
     }
+    
+    cin.ignore();
+    string name = readString("Name: ");
+    string email = readString("Email: ");
+    
+    int bid;
+    Building* building = nullptr;
+    while (!building) {
+        bid = read<int>("Building ID: ", 1, 9999);
+        for (auto* b : LMS.getBuildings())
+            if (b->getBuildingId() == bid) { building = b; break; }
+        if (!building)
+            cout << "Building not found. Please try again.\n";
+    }
+    
+    Attendant* att = new Attendant(id, name, email, building);
+    LMS.addAttendant(att);
+    cout << "\nAttendant added successfully.\n";
     pauseScr();
 }
 
@@ -572,7 +830,15 @@ void viewAllDataMenu() {
              << "9. View Makeup Requests\n"
              << "0. Back\n"
              << "Choice: ";
-        int c; cin >> c; cin.ignore();
+        int c; 
+        if (!(cin >> c)) {
+            cin.clear();
+            cin.ignore(numeric_limits<streamsize>::max(), '\n');
+            cout << "Invalid input. Please try again.\n";
+            pauseScr();
+            continue;
+        }
+        cin.ignore();
         
         if(c == 0) break;
         clearScr();
@@ -580,70 +846,119 @@ void viewAllDataMenu() {
         switch(c) {
         case 1:
             cout << "========== BUILDINGS ==========\n";
-            for (auto* b : LMS.getBuildings())
-                cout << "ID: " << b->getBuildingId() << " | Name: " << b->getName() 
-                     << " | Location: " << b->getLocation() << "\n";
+            if (LMS.getBuildings().empty()) {
+                cout << "No buildings available.\n";
+            } else {
+                for (auto* b : LMS.getBuildings())
+                    cout << "ID: " << b->getBuildingId() << " | Name: " << b->getName() 
+                         << " | Location: " << b->getLocation() << "\n";
+            }
             break;
         case 2:
             cout << "========== ROOMS ==========\n";
-            for (auto* r : LMS.getRooms())
-                cout << "ID: " << r->getRoomId() << " | Number: " << r->getRoomNumber() 
-                     << " | Capacity: " << r->getCapacity() << "\n";
+            if (LMS.getRooms().empty()) {
+                cout << "No rooms available.\n";
+            } else {
+                for (auto* r : LMS.getRooms())
+                    cout << "ID: " << r->getRoomId() << " | Number: " << r->getRoomNumber() 
+                         << " | Capacity: " << r->getCapacity() 
+                         << " | Building: " << (r->getBuilding() ? r->getBuilding()->getName() : "N/A") << "\n";
+            }
             break;
         case 3:
             cout << "========== INSTRUCTORS ==========\n";
-            for (auto* i : LMS.getInstructors())
-                cout << "ID: " << i->getId() << " | Name: " << i->getName() 
-                     << " | Dept: " << i->getDepartment() << "\n";
+            if (LMS.getInstructors().empty()) {
+                cout << "No instructors available.\n";
+            } else {
+                for (auto* i : LMS.getInstructors())
+                    cout << "ID: " << i->getId() << " | Name: " << i->getName() 
+                         << " | Dept: " << i->getDepartment() << " | Office: " << i->getOffice() << "\n";
+            }
             break;
         case 4:
             cout << "========== TAs ==========\n";
-            for (auto* t : LMS.getTAs())
-                cout << "ID: " << t->getId() << " | Name: " << t->getName() 
-                     << " | Program: " << t->getProgram() << "\n";
+            if (LMS.getTAs().empty()) {
+                cout << "No TAs available.\n";
+            } else {
+                for (auto* t : LMS.getTAs())
+                    cout << "ID: " << t->getId() << " | Name: " << t->getName() 
+                         << " | Program: " << t->getProgram() << " | Student ID: " << t->getStudentId() << "\n";
+            }
             break;
         case 5:
             cout << "========== LAB SECTIONS ==========\n";
-            for (auto* ls : LMS.getLabSections())
-                cout << "ID: " << ls->getSectionId() << " | Course: " << ls->getCourseCode() 
-                     << " | Section: " << ls->getSectionName() << "\n";
+            if (LMS.getLabSections().empty()) {
+                cout << "No lab sections available.\n";
+            } else {
+                for (auto* ls : LMS.getLabSections()) {
+                    cout << "ID: " << ls->getSectionId() << " | Course: " << ls->getCourseCode() 
+                         << " | Section: " << ls->getSectionName();
+                    if (ls->getInstructor())
+                        cout << " | Instructor: " << ls->getInstructor()->getName();
+                    if (ls->getRoom())
+                        cout << " | Room: " << ls->getRoom()->getRoomNumber();
+                    cout << "\n";
+                }
+            }
             break;
         case 6:
             cout << "========== SCHEDULES ==========\n";
-            for (auto* s : LMS.getSchedules()) {
-                auto* sec = s->getLabSection();
-                if (sec)
-                    cout << "ID: " << s->getScheduleId() << " | Section: " << sec->getSectionName()
-                         << " | Day: " << s->getDayOfWeek() << " | Time: " 
-                         << s->getExpectedStartTime() << "-" << s->getExpectedEndTime() << "\n";
+            if (LMS.getSchedules().empty()) {
+                cout << "No schedules available. Use 'Populate Lab Data' in Academic Officer menu.\n";
+            } else {
+                for (auto* s : LMS.getSchedules()) {
+                    auto* sec = s->getLabSection();
+                    if (sec)
+                        cout << "ID: " << s->getScheduleId() << " | Section: " << sec->getSectionName()
+                             << " | Day: " << s->getDayOfWeek() << " | Time: " 
+                             << s->getExpectedStartTime() << "-" << s->getExpectedEndTime() << "\n";
+                }
             }
             break;
         case 7:
             cout << "========== TIME SHEETS ==========\n";
-            for (auto* ts : LMS.getTimeSheets()) {
-                auto* sec = ts->getLabSection();
-                if (sec)
-                    cout << "ID: " << ts->getTimeSheetId() << " | Section: " << sec->getSectionName()
-                         << " | Date: " << ts->getDate() << " | Makeup: " 
-                         << (ts->getIsMakeup() ? "YES" : "NO") << "\n";
+            if (LMS.getTimeSheets().empty()) {
+                cout << "No time sheets available. Use 'Populate Lab Data' in Academic Officer menu.\n";
+            } else {
+                for (auto* ts : LMS.getTimeSheets()) {
+                    auto* sec = ts->getLabSection();
+                    if (sec)
+                        cout << "ID: " << ts->getTimeSheetId() << " | Section: " << sec->getSectionName()
+                             << " | Date: " << ts->getDate() << " | Makeup: " 
+                             << (ts->getIsMakeup() ? "YES" : "NO")
+                             << " | Filled: " << (!ts->getActualStartTime().empty() ? "YES" : "NO") << "\n";
+                }
             }
             break;
         case 8:
             cout << "========== ATTENDANTS ==========\n";
-            for (auto* a : LMS.getAttendants()) {
-                auto* b = a->getAssignedBuilding();
-                cout << "ID: " << a->getId() << " | Name: " << a->getName() 
-                     << " | Building: " << (b ? b->getName() : "N/A") << "\n";
+            if (LMS.getAttendants().empty()) {
+                cout << "No attendants available.\n";
+            } else {
+                for (auto* a : LMS.getAttendants()) {
+                    auto* b = a->getAssignedBuilding();
+                    cout << "ID: " << a->getId() << " | Name: " << a->getName() 
+                         << " | Building: " << (b ? b->getName() : "N/A") << "\n";
+                }
             }
             break;
         case 9:
             cout << "========== MAKEUP REQUESTS ==========\n";
-            for (auto* m : LMS.getMakeupLabs()) {
-                auto* sec = m->getLabSection();
-                cout << "ID: " << m->getMakeupId() << " | Section: " 
-                     << (sec ? sec->getSectionName() : "N/A")
-                     << " | Date: " << m->getRequestDate() << " | Reason: " 
-                     << m->getReason() << "\n";
+            if (LMS.getMakeupLabs().empty()) {
+                cout << "No makeup requests available.\n";
+            } else {
+                bool found = false;
+                for (auto* m : LMS.getMakeupLabs()) {
+                    auto* sec = m->getLabSection();
+                    cout << "ID: " << m->getMakeupId() << " | Section: " 
+                         << (sec ? sec->getSectionName() : "N/A")
+                         << " | Date: " << m->getRequestDate() << " | Reason: " 
+                         << m->getReason() 
+                         << " | Status: " << (m->getMakeupSchedule() ? "SCHEDULED" : "PENDING") << "\n";
+                    found = true;
+                }
+                if (!found)
+                    cout << "No makeup requests available.\n";
             }
             break;
         default:
@@ -679,31 +994,35 @@ void fillTimeSheetMenu() {
     clearScr();
     cout << "========== ATTENDANT - FILL TIMESHEET ==========\n";
     
+    if (LMS.getTimeSheets().empty()) {
+        cout << "\nNo time sheets available.\n";
+        pauseScr();
+        return;
+    }
+    
     cout << "\nAvailable Time Sheets:\n";
     for (auto* ts : LMS.getTimeSheets()) {
         auto* sec = ts->getLabSection();
         if (sec)
             cout << "  ID: " << ts->getTimeSheetId() << " | Section: " 
-                 << sec->getSectionName() << " | Date: " << ts->getDate() << "\n";
+                 << sec->getSectionName() << " | Date: " << ts->getDate() 
+                 << " | Filled: " << (!ts->getActualStartTime().empty() ? "YES" : "NO") << "\n";
     }
     
-    int tsId = read<int>("\nTimeSheet ID: ", 1, 999999);
-    auto* ts = [&]()->TimeSheet*{
+    int tsId;
+    TimeSheet* ts = nullptr;
+    while (!ts) {
+        tsId = read<int>("\nTimeSheet ID: ", 1, 999999);
         for(auto* t : LMS.getTimeSheets()) 
-            if(t->getTimeSheetId() == tsId) return t;
-        return nullptr;
-    }();
-    
-    if(!ts) { 
-        cout << "TimeSheet not found.\n"; 
-        pauseScr(); 
-        return; 
+            if(t->getTimeSheetId() == tsId) { ts = t; break; }
+        if (!ts)
+            cout << "TimeSheet not found. Please try again.\n";
     }
     
     cin.ignore();
-    string s, e;
-    cout << "Actual start (HH:MM): "; getline(cin, s);
-    cout << "Actual end   (HH:MM): "; getline(cin, e);
+    string s = readString("Actual start (HH:MM): ");
+    string e = readString("Actual end   (HH:MM): ");
+    
     LMS.fillTimeSheet(tsId, s, e);
     pauseScr();
 }
@@ -712,54 +1031,134 @@ void makeupRequestMenu() {
     clearScr();
     cout << "========== INSTRUCTOR - REQUEST MAKEUP ==========\n";
     
+    if (LMS.getInstructors().empty()) {
+        cout << "\nNo instructors available.\n";
+        pauseScr();
+        return;
+    }
+    
+    if (LMS.getLabSections().empty()) {
+        cout << "\nNo lab sections available.\n";
+        pauseScr();
+        return;
+    }
+    
     cout << "\nAvailable Instructors:\n";
     for (auto* i : LMS.getInstructors())
         cout << "  ID: " << i->getId() << " - " << i->getName() << "\n";
     
     cout << "\nAvailable Lab Sections:\n";
-    for (auto* ls : LMS.getLabSections())
+    for (auto* ls : LMS.getLabSections()) {
         cout << "  ID: " << ls->getSectionId() << " - " << ls->getCourseCode() 
-             << " - " << ls->getSectionName() << "\n";
+             << " - " << ls->getSectionName();
+        if (ls->getInstructor())
+            cout << " (Instructor: " << ls->getInstructor()->getName() << ")";
+        cout << "\n";
+    }
     
-    int insId = read<int>("\nYour Instructor ID: ", 1000, 9999);
-    int secId = read<int>("Lab Section ID: ", 1, 99);
+    int insId;
+    Instructor* instr = nullptr;
+    while (!instr) {
+        insId = read<int>("\nYour Instructor ID: ", 1000, 9999);
+        for (auto* i : LMS.getInstructors())
+            if (i->getId() == insId) { instr = i; break; }
+        if (!instr)
+            cout << "Instructor not found. Please try again.\n";
+    }
+    
+    int secId;
+    LabSection* sec = nullptr;
+    while (!sec) {
+        secId = read<int>("Lab Section ID: ", 1, 99);
+        sec = LMS.findLabSection(secId);
+        if (!sec) {
+            cout << "Lab Section not found. Please try again.\n";
+        } else if (sec->getInstructor() != instr) {
+            cout << "You are not assigned to this section. Please try again.\n";
+            sec = nullptr;
+        }
+    }
+    
     cin.ignore();
-    string date, reason;
-    cout << "Date (YYYY-MM-DD): "; getline(cin, date);
-    cout << "Reason: "; getline(cin, reason);
+    string date = readString("Date (YYYY-MM-DD): ");
+    string reason = readString("Reason: ");
+    
     LMS.requestMakeupLab(insId, secId, date, reason);
     pauseScr();
 }
 
 void scheduleMakeupMenu() {
-    clearScr();
-    cout << "========== ACADEMIC OFFICER - SCHEDULE MAKEUP ==========\n";
-    
-    cout << "\nPending Makeup Requests:\n";
-    bool found = false;
-    for (auto* m : LMS.getMakeupLabs()) {
-        if (!m->getMakeupSchedule()) {
-            found = true;
-            auto* sec = m->getLabSection();
-            cout << "  ID: " << m->getMakeupId() << " | Section: " 
-                 << (sec ? sec->getSectionName() : "N/A")
-                 << " | Date: " << m->getRequestDate() << "\n";
+    while (true) {
+        clearScr();
+        cout << "========== ACADEMIC OFFICER - SCHEDULE MAKEUP ==========\n";
+        
+        cout << "\nPending Makeup Requests:\n";
+        bool found = false;
+        for (auto* m : LMS.getMakeupLabs()) {
+            if (!m->getMakeupSchedule()) {
+                found = true;
+                auto* sec = m->getLabSection();
+                cout << "  ID: " << m->getMakeupId() << " | Section: " 
+                     << (sec ? sec->getSectionName() : "N/A")
+                     << " | Course: " << (sec ? sec->getCourseCode() : "N/A")
+                     << " | Date: " << m->getRequestDate() 
+                     << " | Reason: " << m->getReason() << "\n";
+            }
+        }
+        
+        if (!found) {
+            cout << "No pending requests.\n";
+            cout << "\nPress ENTER to go back...";
+            cin.get();
+            return;
+        }
+        
+        cout << "\nEnter Makeup Request ID (or 0 to go back): ";
+        
+        int mId;
+        if (!(cin >> mId)) {
+            cin.clear();
+            cin.ignore(numeric_limits<streamsize>::max(), '\n');
+            cout << "Invalid input. Press ENTER to try again...";
+            cin.get();
+            continue;
+        }
+        cin.ignore(numeric_limits<streamsize>::max(), '\n');
+        
+        if (mId == 0) {
+            return; // Go back to menu
+        }
+        
+        MakeupLabs* makeup = nullptr;
+        for (auto* m : LMS.getMakeupLabs()) {
+            if (m->getMakeupId() == mId && !m->getMakeupSchedule()) {
+                makeup = m;
+                break;
+            }
+        }
+        
+        if (!makeup) {
+            cout << "\nMakeup request not found or already scheduled.";
+            cout << "\nPress ENTER to try again...";
+            cin.get();
+            continue;
+        }
+        
+        string day = readString("Day (e.g. Monday): ");
+        string st = readString("Start (HH:MM): ");
+        string et = readString("End   (HH:MM): ");
+        
+        LMS.scheduleMakeupLab(mId, day, st, et);
+        
+        cout << "\nSchedule another makeup lab? (y/n): ";
+        char choice;
+        cin >> choice;
+        cin.ignore(numeric_limits<streamsize>::max(), '\n');
+        
+        if (choice != 'y' && choice != 'Y') {
+            return;
         }
     }
-    if (!found) {
-        cout << "No pending requests.\n";
-        pauseScr();
-        return;
-    }
-    
-    int mId = read<int>("\nMakeup Request ID: ", 1, 999999);
-    cin.ignore();
-    string day, st, et;
-    cout << "Day (e.g. Monday): "; getline(cin, day);
-    cout << "Start (HH:MM): "; getline(cin, st);
-    cout << "End   (HH:MM): "; getline(cin, et);
-    LMS.scheduleMakeupLab(mId, day, st, et);
-    pauseScr();
 }
 
 void reportMenu() {
@@ -771,35 +1170,67 @@ void reportMenu() {
              << "3. Semester Report (contact hrs + leaves)\n"
              << "0. Back\n"
              << "Choice: ";
-        int c; cin >> c; cin.ignore();
+        int c; 
+        if (!(cin >> c)) {
+            cin.clear();
+            cin.ignore(numeric_limits<streamsize>::max(), '\n');
+            cout << "Invalid input. Please try again.\n";
+            pauseScr();
+            continue;
+        }
+        cin.ignore();
         if(c == 0) break;
         
         switch(c) {
         case 1: {
+            if (LMS.getSchedules().empty()) {
+                cout << "\nNo schedules available. Please populate lab data first.\n";
+                pauseScr();
+                break;
+            }
             int wk = read<int>("Week Number: ", 1, 52);
             LMS.generateWeeklyScheduleReport(wk); 
             pauseScr(); 
             break;
         }
         case 2: {
-            cin.ignore();
-            string ws;
-            cout << "Week Start (YYYY-MM-DD): "; getline(cin, ws);
+            if (LMS.getTimeSheets().empty()) {
+                cout << "\nNo time sheets available. Please populate lab data first.\n";
+                pauseScr();
+                break;
+            }
+            string ws = readString("Week Start (YYYY-MM-DD): ");
             LMS.generateWeeklyTimeSheetReport(ws); 
             pauseScr(); 
             break;
         }
         case 3: {
+            if (LMS.getLabSections().empty()) {
+                cout << "\nNo lab sections available.\n";
+                pauseScr();
+                break;
+            }
+            
             cout << "\nAvailable Lab Sections:\n";
             for (auto* ls : LMS.getLabSections())
-                cout << "  ID: " << ls->getSectionId() << " - " << ls->getCourseCode() << "\n";
-            int sid = read<int>("\nLab Section ID: ", 1, 99);
+                cout << "  ID: " << ls->getSectionId() << " - " << ls->getCourseCode() 
+                     << " - " << ls->getSectionName() << "\n";
+            
+            int sid;
+            LabSection* sec = nullptr;
+            while (!sec) {
+                sid = read<int>("\nLab Section ID: ", 1, 99);
+                sec = LMS.findLabSection(sid);
+                if (!sec)
+                    cout << "Lab Section not found. Please try again.\n";
+            }
+            
             LMS.generateLabSemesterReport(sid); 
             pauseScr(); 
             break;
         }
         default: 
-            cout << "Invalid.\n"; 
+            cout << "Invalid choice.\n"; 
             pauseScr();
         }
     }
@@ -818,7 +1249,15 @@ void dataManagementMenu() {
              << "7. View All Data\n"
              << "0. Back\n"
              << "Choice: ";
-        int c; cin >> c; cin.ignore();
+        int c; 
+        if (!(cin >> c)) {
+            cin.clear();
+            cin.ignore(numeric_limits<streamsize>::max(), '\n');
+            cout << "Invalid input. Please try again.\n";
+            pauseScr();
+            continue;
+        }
+        cin.ignore();
         if(c == 0) break;
         
         switch(c) {
@@ -829,7 +1268,7 @@ void dataManagementMenu() {
         case 5: addLabSectionMenu(); break;
         case 6: addAttendantMenu(); break;
         case 7: viewAllDataMenu(); break;
-        default: cout << "Invalid.\n"; pauseScr();
+        default: cout << "Invalid choice.\n"; pauseScr();
         }
     }
 }
@@ -841,9 +1280,18 @@ void academicOfficerMenu() {
              << "1. View Pending Makeup Requests\n"
              << "2. Schedule Makeup Lab\n"
              << "3. Populate Lab Data (Generate Schedules)\n"
+             << "4. Add Single Schedule & Timesheet\n"
              << "0. Back\n"
              << "Choice: ";
-        int c; cin >> c; cin.ignore();
+        int c; 
+        if (!(cin >> c)) {
+            cin.clear();
+            cin.ignore(numeric_limits<streamsize>::max(), '\n');
+            cout << "Invalid input. Please try again.\n";
+            pauseScr();
+            continue;
+        }
+        cin.ignore();
         if(c == 0) break;
         
         switch(c) {
@@ -851,14 +1299,55 @@ void academicOfficerMenu() {
         case 2: scheduleMakeupMenu(); break;
         case 3: 
             if (LMS.getAcademicOfficer()) {
-                LMS.getAcademicOfficer()->populateLabData();
-                cout << "Lab data populated.\n";
+                if (LMS.getLabSections().empty()) {
+                    cout << "\nNo lab sections available. Please add lab sections first.\n";
+                } else {
+                    LMS.getAcademicOfficer()->populateLabData();
+                }
             } else {
-                cout << "Academic Officer not configured.\n";
+                cout << "\nAcademic Officer not configured.\n";
             }
             pauseScr();
             break;
-        default: cout << "Invalid.\n"; pauseScr();
+        case 4: {
+            if (LMS.getLabSections().empty()) {
+                cout << "\nNo lab sections available.\n";
+                pauseScr();
+                break;
+            }
+            
+            cout << "\nAvailable Lab Sections:\n";
+            for (auto* ls : LMS.getLabSections())
+                cout << "  ID: " << ls->getSectionId() << " - " << ls->getCourseCode() 
+                     << " - " << ls->getSectionName() << "\n";
+            
+            int secId;
+            LabSection* sec = nullptr;
+            while (!sec) {
+                secId = read<int>("\nLab Section ID: ", 1, 99);
+                sec = LMS.findLabSection(secId);
+                if (!sec)
+                    cout << "Lab Section not found. Please try again.\n";
+            }
+            
+            cin.ignore();
+            string day = readString("Day of week (e.g., Monday): ");
+            string start = readString("Start time (HH:MM): ");
+            string end = readString("End time (HH:MM): ");
+            string date = readString("Date for timesheet (YYYY-MM-DD): ");
+            
+            static int schId = 20000, tsId = 30000;
+            auto* sch = new Schedule(++schId, sec, day, start, end);
+            LMS.addSchedule(sch);
+            
+            auto* ts = new TimeSheet(++tsId, sec, date, "", "", false);
+            LMS.addTimeSheet(ts);
+            
+            cout << "\n✓ Schedule (ID: " << schId << ") and Timesheet (ID: " << tsId << ") created successfully!\n";
+            pauseScr();
+            break;
+        }
+        default: cout << "Invalid choice.\n"; pauseScr();
         }
     }
 }
@@ -877,7 +1366,15 @@ void mainMenu() {
              << "  0.  Exit & Save\n"
              << "========================================================\n"
              << "Choice: ";
-        int ch; cin >> ch; cin.ignore();
+        int ch; 
+        if (!(cin >> ch)) {
+            cin.clear();
+            cin.ignore(numeric_limits<streamsize>::max(), '\n');
+            cout << "Invalid input. Please enter a number.\n";
+            pauseScr();
+            continue;
+        }
+        cin.ignore();
         
         switch(ch) {
         case 1: dataManagementMenu(); break;
@@ -887,10 +1384,10 @@ void mainMenu() {
         case 5: reportMenu(); break;
         case 0: 
             savePersistent(); 
-            cout << "Data saved successfully. Good-bye!\n"; 
+            cout << "\nData saved successfully. Good-bye!\n"; 
             return;
         default: 
-            cout << "Invalid choice.\n"; 
+            cout << "Invalid choice. Please try again.\n"; 
             pauseScr();
         }
     }
