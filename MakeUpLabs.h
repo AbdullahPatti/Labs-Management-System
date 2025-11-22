@@ -38,5 +38,15 @@ public:
         ofstream f(filename, ios::binary);
         if (f.is_open()) serialize(f);
     }
+
+    void deserialize(ifstream& f) {
+    f.read((char*)&makeupId, sizeof(makeupId));
+    int sid; f.read((char*)&sid, sizeof(sid));
+    labSection = nullptr; // rebuilt later
+    requestDate = FileHandler::readString(f);
+    reason      = FileHandler::readString(f);
+    int msid; f.read((char*)&msid, sizeof(msid));
+    makeupSchedule = nullptr; // rebuilt later
+}
 };
 #endif

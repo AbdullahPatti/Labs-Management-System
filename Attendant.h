@@ -13,6 +13,8 @@ public:
         : Person(pid, pname, pemail), assignedBuilding(b) {}
 
     Building* getAssignedBuilding() const { return assignedBuilding; }
+    // persistence helper
+void _setBuilding(Building* b) { assignedBuilding = b; }
 
     void fillTimeSheet(TimeSheet* ts, string st, string et) {
         if (!ts) return;

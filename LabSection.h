@@ -28,6 +28,12 @@ public:
     vector<TA*> getTAs()         const { return tas; }
     void addTA(TA* t) { tas.push_back(t); }
 
+    // persistence helpers
+void _setInstructor(Instructor* i) { instructor = i; }
+void _setRoom(Room* r)            { room = r; }
+void _clearTAs()                  { tas.clear(); }
+void _addTA(TA* t)                { tas.push_back(t); }
+
     void serialize(ofstream& f) const {
         f.write((char*)&sectionId, sizeof(sectionId));
         FileHandler::writeString(f, courseCode);
@@ -43,9 +49,28 @@ public:
             f.write((char*)&tid, sizeof(tid));
         }
     }
+
     void saveToFile(const string& filename) const {
         ofstream f(filename, ios::binary);
         if (f.is_open()) serialize(f);
     }
+
+    void deserialize(ifstream& f) {
+    f.read((char*)&sectionId, sizeof(sectionId));
+    courseCode  = FileHandler::readString(f);
+    sectionName = FileHandler::readString(f);
+    int iid, rid;
+    f.read((char*)&iid, sizeof(iid));
+    f.read((char*)&rid, sizeof(rid));
+    instructor = nullptr;   // rebuilt later
+    room       = nullptr;   // rebuilt later
+    size_t tasCnt;
+    f.read((char*)&tasCnt, sizeof(tasCnt));
+    tas.clear();
+    for (size_t i = 0; i < tasCnt; ++i) {
+        int tid; f.read((char*)&tid, sizeof(tid));
+        tas.push_back(nullptr); // placeholder, rebuilt later
+    }
+}
 };
 #endif

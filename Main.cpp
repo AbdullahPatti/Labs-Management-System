@@ -61,7 +61,7 @@ void HOD::generateLabSemesterReport(int lsid) {
 
 /* --------------  LabManagementSystem method definitions  -------------- */
 void LabManagementSystem::generateWeeklyScheduleReport(int weekNo) {
-    cout << "\n========== WEEKLY SCHEDULE – WEEK " << weekNo << " ==========\n";
+    cout << "\n---------- WEEKLY SCHEDULE – WEEK " << weekNo << " ----------\n";
     cout << left << setw(12) << "Course" << setw(12) << "Section" << setw(10) << "Day"
          << setw(12) << "Start" << setw(12) << "End" << setw(15) << "Instructor" << "\n";
     for (auto* s : schedules) {
@@ -77,7 +77,7 @@ void LabManagementSystem::generateWeeklyScheduleReport(int weekNo) {
     cout << string(70, '=') << "\n";
 }
 void LabManagementSystem::generateWeeklyTimeSheetReport(const string& weekStart) {
-    cout << "\n========== TIMESHEET WEEK STARTING " << weekStart << " ==========\n";
+    cout << "\n---------- TIMESHEET WEEK STARTING " << weekStart << " ----------\n";
     for (auto* ts : timeSheets) {
         auto* sec = ts->getLabSection();
         if (!sec) continue;
@@ -91,8 +91,8 @@ void LabManagementSystem::generateWeeklyTimeSheetReport(const string& weekStart)
 void LabManagementSystem::generateLabSemesterReport(int labSecId) {
     auto* sec = findLabSection(labSecId);
     if (!sec) { cout << "Lab section not found.\n"; return; }
-    cout << "\n========== SEMESTER REPORT  " << sec->getCourseCode()
-         << " – " << sec->getSectionName() << " ==========\n";
+    cout << "\n---------- SEMESTER REPORT  " << sec->getCourseCode()
+         << " – " << sec->getSectionName() << " ----------\n";
     LabFullSemReport rep(sec);
     for (auto* ts : timeSheets)
         if (ts->getLabSection() == sec) rep.addTimeSheet(ts);
@@ -139,8 +139,8 @@ void LabManagementSystem::fillTimeSheet(int tsid, const string& st, const string
 }
 
 /* ---------- Console helpers ---------- */
-void clearScr()  { system("cls"); }
-void pauseScr()  { cout << "\n⏎  Press ENTER to continue..."; cin.ignore(numeric_limits<streamsize>::max(),'\n'); }
+void clearScr()  { system("cls||clear"); }
+void pauseScr()  { cout << "\nPress ENTER to continue..."; cin.ignore(numeric_limits<streamsize>::max(),'\n'); }
 template<typename T>
 T read(string prompt, T low, T high) {
     T x;
@@ -148,7 +148,7 @@ T read(string prompt, T low, T high) {
         cout << prompt;
         if (cin >> x && x >= low && x <= high) return x;
         cin.clear(); cin.ignore(256,'\n');
-        cout << "❌  Invalid input. Try again.\n";
+        cout << "Invalid input. Try again.\n";
     }
 }
 
@@ -156,10 +156,139 @@ T read(string prompt, T low, T high) {
 LabManagementSystem LMS;
 
 /* ============================================================
+                      BINARY PERSISTENCE
+   ============================================================ */
+static const string BASE_DIR = "data/";
+
+template<typename T>
+void saveVector(const vector<T*>& vec, const string& fname) {
+    ofstream ofs(BASE_DIR + fname, ios::binary);
+    if (!ofs) return;
+    size_t sz = vec.size();
+    ofs.write((char*)&sz, sizeof(sz));
+    for (auto* p : vec) p->serialize(ofs);
+}
+template<typename T>
+void loadVector(vector<T*>& vec, const string& fname) {
+    ifstream ifs(BASE_DIR + fname, ios::binary);
+    if (!ifs) return;
+    size_t sz; ifs.read((char*)&sz, sizeof(sz));
+    vec.clear(); vec.reserve(sz);
+    for (size_t i = 0; i < sz; ++i) {
+        auto* t = new T(); t->deserialize(ifs); vec.push_back(t);
+    }
+}
+
+/* rebuild pointers after load */
+void rebuildLinks() {
+    /* Building -> Room */
+    for (auto* r : LMS.getRooms())
+        for (auto* b : LMS.getBuildings())
+            if (b->getBuildingId() == [&]{
+                ifstream ifs(BASE_DIR + "buildings.dat", ios::binary);
+                ifs.seekg(sizeof(size_t)); // skip count
+                for (size_t i = 0; i < LMS.getBuildings().size(); ++i) {
+                    int bid; ifs.read((char*)&bid, sizeof(bid));
+                    string name = FileHandler::readString(ifs);
+                    string loc  = FileHandler::readString(ifs);
+                    if (b->getBuildingId() == bid) return bid;
+                }
+                return -1;
+            }()) r->_setBuilding(b);
+
+    /* LabSection -> Instructor, Room, TAs */
+    for (auto* ls : LMS.getLabSections()) {
+        int iid, rid; size_t tas;
+        ifstream ifs(BASE_DIR + "labsections.dat", ios::binary);
+        ifs.seekg(sizeof(size_t));
+        for (size_t i = 0; i < LMS.getLabSections().size(); ++i) {
+            int sid; ifs.read((char*)&sid, sizeof(sid));
+            string cc = FileHandler::readString(ifs);
+            string sn = FileHandler::readString(ifs);
+            ifs.read((char*)&iid, sizeof(iid));
+            ifs.read((char*)&rid, sizeof(rid));
+            ifs.read((char*)&tas, sizeof(tas));
+            if (sid == ls->getSectionId()) break;
+            for (size_t j = 0; j < tas; ++j) { int tid; ifs.read((char*)&tid, sizeof(tid)); }
+        }
+        for (auto* inst : LMS.getInstructors()) if (inst->getId() == iid) ls->_setInstructor(inst);
+        for (auto* r : LMS.getRooms()) if (r->getRoomId() == rid) ls->_setRoom(r);
+        ls->_clearTAs();
+        for (size_t j = 0; j < tas; ++j) {
+            int tid; ifs.read((char*)&tid, sizeof(tid));
+            for (auto* ta : LMS.getTAs()) if (ta->getId() == tid) ls->_addTA(ta);
+        }
+    }
+
+    /* Attendant -> Building */
+    for (auto* a : LMS.getAttendants()) {
+        int bid;
+        ifstream ifs(BASE_DIR + "attendants.dat", ios::binary);
+        ifs.seekg(sizeof(size_t));
+        for (size_t i = 0; i < LMS.getAttendants().size(); ++i) {
+            int aid; ifs.read((char*)&aid, sizeof(aid));
+            string nm = FileHandler::readString(ifs);
+            string em = FileHandler::readString(ifs);
+            ifs.read((char*)&bid, sizeof(bid));
+            if (aid == a->getId()) break;
+        }
+        for (auto* b : LMS.getBuildings()) if (b->getBuildingId() == bid) a->_setBuilding(b);
+    }
+
+    /* HOD / AcademicOfficer -> LabManagementSystem */
+    if (LMS.getHOD()) const_cast<HOD*>(LMS.getHOD())->setSystem(&LMS);
+    if (LMS.getAcademicOfficer()) const_cast<AcademicOfficer*>(LMS.getAcademicOfficer())->setSystem(&LMS);
+}
+void savePersistent() {
+    cout << "Saving persistent state...\n";
+    system(("mkdir -p " + BASE_DIR).c_str());
+    saveVector(LMS.getBuildings(),     "buildings.dat");
+    saveVector(LMS.getRooms(),         "rooms.dat");
+    saveVector(LMS.getInstructors(),   "instructors.dat");
+    saveVector(LMS.getTAs(),           "tas.dat");
+    saveVector(LMS.getLabSections(),   "labsections.dat");
+    saveVector(LMS.getSchedules(),     "schedules.dat");
+    saveVector(LMS.getTimeSheets(),    "timesheets.dat");
+    saveVector(LMS.getAttendants(),    "attendants.dat");
+    saveVector(LMS.getMakeupLabs(),    "makeuplabs.dat");
+    /* officers */
+    ofstream ofs(BASE_DIR + "officers.dat", ios::binary);
+    size_t sz = 2;
+    ofs.write((char*)&sz, sizeof(sz));
+    if (LMS.getHOD()) LMS.getHOD()->serialize(ofs);
+    if (LMS.getAcademicOfficer()) LMS.getAcademicOfficer()->serialize(ofs);
+}
+
+void loadPersistent() {
+    cout << "Loading persistent state...\n";
+    loadVector<Building>(const_cast<vector<Building*>&>(LMS.getBuildings()), "buildings.dat");
+    loadVector<Room>(const_cast<vector<Room*>&>(LMS.getRooms()), "rooms.dat");
+    loadVector<Instructor>(const_cast<vector<Instructor*>&>(LMS.getInstructors()), "instructors.dat");
+    loadVector<TA>(const_cast<vector<TA*>&>(LMS.getTAs()), "tas.dat");
+    loadVector<LabSection>(const_cast<vector<LabSection*>&>(LMS.getLabSections()), "labsections.dat");
+    loadVector<Schedule>(const_cast<vector<Schedule*>&>(LMS.getSchedules()), "schedules.dat");
+    loadVector<TimeSheet>(const_cast<vector<TimeSheet*>&>(LMS.getTimeSheets()), "timesheets.dat");
+    loadVector<Attendant>(const_cast<vector<Attendant*>&>(LMS.getAttendants()), "attendants.dat");
+    loadVector<MakeupLabs>(const_cast<vector<MakeupLabs*>&>(LMS.getMakeupLabs()), "makeuplabs.dat");
+    /* officers */
+    ifstream ifs(BASE_DIR + "officers.dat", ios::binary);
+    if (ifs) {
+        size_t sz; ifs.read((char*)&sz, sizeof(sz));
+        if (sz >= 1) {
+            HOD* h = new HOD(); h->deserialize(ifs); LMS.setHOD(h);
+        }
+        if (sz >= 2) {
+            AcademicOfficer* ao = new AcademicOfficer(); ao->deserialize(ifs); LMS.setAcademicOfficer(ao);
+        }
+    }
+    rebuildLinks();
+}
+
+/* ============================================================
                       PRE-POPULATION ROUTINES
    ============================================================ */
 void seedData() {
-    cout << "🌱  Seeding master data...\n";
+    cout << "Seeding master data...\n";
 
     /* Buildings & Rooms */
     Building* csB = new Building(1,"Computer-Science Block","Main Campus");
@@ -219,29 +348,18 @@ void seedData() {
     cout << "✅  Master data seeded.\n";
 }
 
-void loadPersistent() {
-    cout << "💾  Loading persistent state...\n";
-    /* In real life we would iterate over *.dat files and reconstruct objects.
-       For brevity we simply notify.  No error is fatal. */
-}
-
-void savePersistent() {
-    cout << "💾  Saving persistent state...\n";
-    /* Analogous – iterate containers and call ->saveToFile(...) */
-}
-
 /* ============================================================
                           MENUS
    ============================================================ */
 void fillTimeSheetMenu() {
     clearScr();
-    cout << "==========  ATTENDANT – FILL TIMESHEET  ==========\n";
+    cout << "----------  ATTENDANT - FILL TIMESHEET  ----------\n";
     int tsId = read<int>("TimeSheet ID: ",1,999999);
     auto* ts = [&]()->TimeSheet*{
         for(auto* t:LMS.getTimeSheets()) if(t->getTimeSheetId()==tsId) return t;
         return nullptr;
     }();
-    if(!ts){ cout<<"❌  TimeSheet not found.\n"; pauseScr(); return; }
+    if(!ts){ cout<<"TimeSheet not found.\n"; pauseScr(); return; }
     string s,e;
     cout<<"Actual start (HH:MM): "; cin>>s;
     cout<<"Actual end   (HH:MM): "; cin>>e;
@@ -251,7 +369,7 @@ void fillTimeSheetMenu() {
 
 void makeupRequestMenu() {
     clearScr();
-    cout << "==========  INSTRUCTOR – REQUEST MAKEUP  ==========\n";
+    cout << "----------  INSTRUCTOR - REQUEST MAKEUP  ----------\n";
     int insId = read<int>("Your Instructor ID: ",1000,9999);
     int secId = read<int>("Lab Section ID: ",1,99);
     string date,reason;
@@ -264,7 +382,7 @@ void makeupRequestMenu() {
 
 void scheduleMakeupMenu() {
     clearScr();
-    cout << "==========  ACADEMIC OFFICER – SCHEDULE MAKEUP  ==========\n";
+    cout << "----------  ACADEMIC OFFICER - SCHEDULE MAKEUP  ----------\n";
     int mId = read<int>("Makeup Request ID: ",1,999);
     string day,st,et;
     cout<<"Day (e.g. Monday): "; cin>>day;
@@ -277,7 +395,7 @@ void scheduleMakeupMenu() {
 void reportMenu() {
     while(true){
         clearScr();
-        cout << "==========  HOD – REPORTS  ==========\n"
+        cout << "----------  HOD - REPORTS  ----------\n"
              << "1. Weekly Schedule Report\n"
              << "2. Weekly Time-Sheet Report\n"
              << "3. Semester Report (contact hrs + leaves)\n"
@@ -298,15 +416,15 @@ void reportMenu() {
 void mainMenu() {
     while(true){
         clearScr();
-        cout << "╔══════════════════════════════════════════════════════╗\n"
-             << "║        🎓 UNIVERSITY LAB MANAGEMENT SYSTEM 🎓        ║\n"
-             << "╠══════════════════════════════════════════════════════╣\n"
-             << "║  1.  🧑‍🔬  Instructor  – Request Makeup Lab           ║\n"
-             << "║  2.  🧑‍💼  AcademicOfficer – Schedule Makeup         ║\n"
-             << "║  3.  🧑‍🔧  Attendant – Fill TimeSheet                ║\n"
-             << "║  4.  👨‍🏫  HOD – Generate Reports                    ║\n"
-             << "║  0.  ❌  Exit & Save                                ║\n"
-             << "╚══════════════════════════════════════════════════════╝\n"
+        cout << "----------------------------------------------------------\n"
+             << "           UNIVERSITY LAB MANAGEMENT SYSTEM         \n"
+             << "----------------------------------------------------------\n"
+             << "   1.    Instructor - Request Makeup Lab            \n"
+             << "   2.    AcademicOfficer - Schedule Makeup           \n"
+             << "   3.    Attendant - Fill TimeSheet                \n"
+             << "   4.    HOD - Generate Reports                    \n"
+             << "   0.    Exit & Save                                \n"
+             << "---------------------------------------------------------\n"
              << "Choice: ";
         int ch; cin>>ch; cin.ignore();
         switch(ch){
@@ -314,8 +432,8 @@ void mainMenu() {
         case 2: scheduleMakeupMenu(); break;
         case 3: fillTimeSheetMenu(); break;
         case 4: reportMenu(); break;
-        case 0: savePersistent(); cout<<"👋  Good-bye!\n"; return;
-        default: cout<<"❌  Invalid.\n"; pauseScr();
+        case 0: savePersistent(); cout<<"Good-bye!\n"; return;
+        default: cout<<"Invalid.\n"; pauseScr();
         }
     }
 }
@@ -323,7 +441,12 @@ void mainMenu() {
 /* ============================================================ */
 int main(){
     loadPersistent();
-    seedData();
+    if (LMS.getBuildings().empty()) {
+        clearScr();
+        cout << "No persisted data found.  Seed with sample data? (y/n): ";
+        char ans; cin >> ans; cin.ignore();
+        if (ans=='y' || ans=='Y') seedData();
+    }
     mainMenu();
     return 0;
 }

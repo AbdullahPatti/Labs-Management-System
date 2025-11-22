@@ -28,6 +28,10 @@ public:
         int bid = building ? building->getBuildingId() : -1;
         f.write((char*)&bid, sizeof(bid));
     }
+    
+    // persistence helper
+void _setBuilding(Building* b) { building = b; }
+
     void deserialize(ifstream& f) {
         f.read((char*)&roomId, sizeof(roomId));
         roomNumber = FileHandler::readString(f);

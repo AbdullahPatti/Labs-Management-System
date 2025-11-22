@@ -1,5 +1,6 @@
 #ifndef REPORTS_H
 #define REPORTS_H
+#include<iostream>
 #include <string>
 #include <fstream>
 #include <sstream>
