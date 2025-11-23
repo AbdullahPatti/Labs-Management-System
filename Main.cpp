@@ -389,6 +389,30 @@ void rebuildLinks() {
         }
     }
 
+    // Rebuild MakeupLabs → Section and Schedule links
+for (auto* m : LMS.getMakeupLabs()) {
+
+    // Link section
+    if (m->storedSectionId != -1) {
+        for (auto* sec : LMS.getLabSections()) {
+            if (sec->getSectionId() == m->storedSectionId) {
+                m->_setLabSection(sec);
+                break;
+            }
+        }
+    }
+
+    // Link schedule
+    if (m->storedScheduleId != -1) {
+        for (auto* sch : LMS.getSchedules()) {
+            if (sch->getScheduleId() == m->storedScheduleId) {
+                m->setMakeupSchedule(sch);
+                break;
+            }
+        }
+    }
+}
+
     for (auto* a : attendants) {
         ifstream ifs(BASE_DIR + "attendants.dat", ios::binary);
         size_t sz; ifs.read((char*)&sz, sizeof(sz));
@@ -1126,7 +1150,7 @@ void scheduleMakeupMenu() {
         cin.ignore(numeric_limits<streamsize>::max(), '\n');
         
         if (mId == 0) {
-            return; // Go back to menu
+            return;
         }
         
         MakeupLabs* makeup = nullptr;
@@ -1150,16 +1174,17 @@ void scheduleMakeupMenu() {
         
         LMS.scheduleMakeupLab(mId, day, st, et);
         
-        cout << "\nSchedule another makeup lab? (y/n): ";
-        char choice;
-        cin >> choice;
-        cin.ignore(numeric_limits<streamsize>::max(), '\n');
+        cout << "\nSaving changes to disk...\n";
+        savePersistent();
+        cout << "Changes saved successfully!\n";
         
-        if (choice != 'y' && choice != 'Y') {
-            return;
-        }
+        cout << "\nMakeup lab scheduled and saved.\nReturning to main menu...\n";
+        pauseScr();
+
+        break;      // <<< THIS LINE FIXES THE ISSUE
     }
 }
+
 
 void reportMenu() {
     while(true) {

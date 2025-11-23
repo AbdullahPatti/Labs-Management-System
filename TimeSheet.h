@@ -1,10 +1,12 @@
 #ifndef TIMESHEET_H
 #define TIMESHEET_H
+
 #include <fstream>
 #include "FileHandler.h"
 class LabSection;
 using namespace std;
 
+// Timesheet - tracks actual lab session times
 class TimeSheet {
     int         timeSheetId;
     LabSection* labSection;
@@ -12,8 +14,10 @@ class TimeSheet {
     string      actualStart;
     string      actualEnd;
     bool        isMakeup;
+    
 public:
     TimeSheet() : timeSheetId(0), labSection(nullptr), date(""), actualStart(""), actualEnd(""), isMakeup(false) {}
+    // Create timesheet for lab session
     TimeSheet(int tid, LabSection* sec, string d, string s, string e, bool m)
         : timeSheetId(tid), labSection(sec), date(d), actualStart(s), actualEnd(e), isMakeup(m) {}
 
@@ -27,6 +31,7 @@ public:
     void setActualStartTime(string s) { actualStart = s; }
     void setActualEndTime(string e)   { actualEnd = e; }
 
+    // Serialize timesheet data
     void serialize(ofstream& f) const {
         f.write((char*)&timeSheetId, sizeof(timeSheetId));
         int sid = labSection ? labSection->getSectionId() : -1;
@@ -36,19 +41,23 @@ public:
         FileHandler::writeString(f, actualEnd);
         f.write((char*)&isMakeup, sizeof(isMakeup));
     }
+
+    // Save to binary file
     void saveToFile(const string& filename) const {
         ofstream f(filename, ios::binary);
         if (f.is_open()) serialize(f);
     }
 
+    // Deserialize timesheet data
     void deserialize(ifstream& f) {
-    f.read((char*)&timeSheetId, sizeof(timeSheetId));
-    int sid; f.read((char*)&sid, sizeof(sid));
-    labSection = nullptr; // rebuilt later
-    date        = FileHandler::readString(f);
-    actualStart = FileHandler::readString(f);
-    actualEnd   = FileHandler::readString(f);
-    f.read((char*)&isMakeup, sizeof(isMakeup));
-}
+        f.read((char*)&timeSheetId, sizeof(timeSheetId));
+        int sid; f.read((char*)&sid, sizeof(sid));
+        labSection = nullptr; // rebuilt later
+        date        = FileHandler::readString(f);
+        actualStart = FileHandler::readString(f);
+        actualEnd   = FileHandler::readString(f);
+        f.read((char*)&isMakeup, sizeof(isMakeup));
+    }
 };
+
 #endif

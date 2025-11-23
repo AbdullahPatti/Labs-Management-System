@@ -1,12 +1,13 @@
 #ifndef LABMANAGEMENTSYSTEM_H
 #define LABMANAGEMENTSYSTEM_H
+
 #include <vector>
 #include <string>
 #include <iomanip>
 #include <sstream>
 using namespace std;
 
-// forward declarations
+// Forward declarations to reduce coupling
 class Building;
 class Room;
 class Instructor;
@@ -19,6 +20,18 @@ class Attendant;
 class HOD;
 class AcademicOfficer;
 
+/**
+ * LabManagementSystem class - Core system controller
+ * 
+ * Responsibilities:
+ * - Central data management for all entities
+ * - Coordinate business operations and workflows
+ * - Provide data access for UI and reporting
+ * - Manage object relationships and persistence
+ * 
+ * Design: Singleton pattern (implemented in Main.cpp)
+ * Contains collections of all system entities
+ */
 class LabManagementSystem {
     vector<Building*>     buildings;
     vector<Room*>         rooms;
@@ -33,7 +46,7 @@ class LabManagementSystem {
     AcademicOfficer*      academicOfficer = nullptr;
 
 public:
-    /* getters – const */
+    /* Getters – const references for data access */
     const vector<Building*>&   getBuildings()     const { return buildings; }
     const vector<Room*>&       getRooms()         const { return rooms; }
     const vector<Instructor*>& getInstructors()   const { return instructors; }
@@ -46,11 +59,11 @@ public:
     HOD*                  getHOD()                const { return hod; }
     AcademicOfficer*      getAcademicOfficer()    const { return academicOfficer; }
 
-    /* setters */
+    /* Setters for role assignments */
     void setHOD(HOD* h) { hod = h; }
     void setAcademicOfficer(AcademicOfficer* ao) { academicOfficer = ao; }
 
-    /* adders */
+    /* Adders for entity management */
     void addBuilding(Building* b)   { buildings.push_back(b); }
     void addRoom(Room* r)           { rooms.push_back(r); }
     void addInstructor(Instructor* i){ instructors.push_back(i); }
@@ -61,22 +74,73 @@ public:
     void addAttendant(Attendant* a) { attendants.push_back(a); }
     void addMakeupLab(MakeupLabs* m){ makeupLabs.push_back(m); }
 
-    /* find helpers */
+    /* Find helpers for entity lookup */
+    
+    /**
+     * Finds lab section by ID
+     * @param sid Section ID to search for
+     * @return Pointer to LabSection or nullptr if not found
+     */
     LabSection* findLabSection(int sid) {
         for (auto* ls : labSections) if (ls->getSectionId() == sid) return ls;
         return nullptr;
     }
+    
+    /**
+     * Finds schedule by ID
+     * @param schid Schedule ID to search for
+     * @return Pointer to Schedule or nullptr if not found
+     */
     Schedule* findSchedule(int schid) {
         for (auto* s : schedules) if (s->getScheduleId() == schid) return s;
         return nullptr;
     }
 
-    /* core business functions – implemented AFTER all headers */
+    /* Core business functions – implemented in Main.cpp */
+    
+    /**
+     * Generates weekly schedule report
+     * @param weekNo Week number for report
+     */
     void generateWeeklyScheduleReport(int weekNo);
+    
+    /**
+     * Generates weekly timesheet report
+     * @param weekStart Starting date of week
+     */
     void generateWeeklyTimeSheetReport(const string& weekStart);
+    
+    /**
+     * Generates semester report for lab section
+     * @param labSecId Lab section identifier
+     */
     void generateLabSemesterReport(int labSecId);
+    
+    /**
+     * Requests a makeup lab session
+     * @param insId Instructor ID making request
+     * @param secId Lab section ID needing makeup
+     * @param date Requested makeup date
+     * @param reason Reason for makeup request
+     */
     void requestMakeupLab(int insId, int secId, const string& date, const string& reason);
+    
+    /**
+     * Schedules a makeup lab session
+     * @param mid Makeup request ID to schedule
+     * @param day Day of week for makeup
+     * @param st Start time for makeup session
+     * @param et End time for makeup session
+     */
     void scheduleMakeupLab(int mid, const string& day, const string& st, const string& et);
+    
+    /**
+     * Fills timesheet with actual times
+     * @param tsid Timesheet ID to fill
+     * @param st Actual start time
+     * @param et Actual end time
+     */
     void fillTimeSheet(int tsid, const string& st, const string& et);
 };
+
 #endif
